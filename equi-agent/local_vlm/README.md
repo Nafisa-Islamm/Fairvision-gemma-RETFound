@@ -21,6 +21,8 @@ by FAIRVISION_DATA_ROOT; Amd/Dr/Glaucoma and case variations of Test are support
   Transformers 4.53.3). Run installation on a CPU allocation with network access.
 - `cluster_cpu.sbatch`, `cluster_gpu.sbatch`: Slurm templates. Supply the real
   partition and any required account on each cluster; neither is guessed.
+  GPU jobs enter an `srun` task step and print node/device diagnostics before
+  checking PyTorch CUDA access. They stop before inference if no GPU is visible.
 - `../tests/test_fairvision_local_vlm.py`: ten targeted regression tests.
 
 The original paper cohort CSV contains one glaucoma label of -1. Manifest
