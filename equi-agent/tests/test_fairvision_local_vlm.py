@@ -168,6 +168,8 @@ class LocalVLMTests(unittest.TestCase):
                 return self
 
             def generate(self, **kwargs):
+                if kwargs.get("disable_compile") is not True:
+                    raise AssertionError("Cluster inference must disable automatic compilation")
                 return torch.tensor([[1, 2]])
 
         with tempfile.TemporaryDirectory() as tmp:

@@ -334,7 +334,7 @@ def infer(args):
                       model_config_sha256=hashlib.sha256((snapshot / "config.json").read_bytes()).hexdigest(),
                       cohort_sha256=digest(cases), prompts=PROMPTS,
                       oct_slices=args.oct_slices, max_new_tokens=args.max_new_tokens,
-                      dtype=args.dtype, device=args.device, do_sample=False, seed=2026,
+                      dtype=args.dtype, device=args.device, do_sample=False, disable_compile=True, seed=2026,
                       python=platform.python_version(), torch=torch.__version__)
         import transformers
         config["transformers"] = transformers.__version__
@@ -393,7 +393,10 @@ def infer(args):
                         return_dict=True, return_tensors="pt").to(model.device, dtype=dtype)
                     input_length = inputs["input_ids"].shape[-1]
                     with torch.inference_mode():
-                        generated = model.generate(**inputs, max_new_tokens=args.max_new_tokens, do_sample=False)
+                        # Gemma checkpoints may enable compilation through their cache configuration.
+                        # Eager generation avoids requiring Python development headers on compute nodes.
+                        generated = model.generate(**inputs, max_new_tokens=args.max_new_tokens,
+                                                   do_sample=False, disable_compile=True)
                     raw = processor.decode(generated[0][input_length:], skip_special_tokens=True)
                     prediction, confidence, reasoning = parse_prediction(raw, case["task"])
                 except torch.cuda.OutOfMemoryError:

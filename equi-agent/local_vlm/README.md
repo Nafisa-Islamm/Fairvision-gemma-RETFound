@@ -56,3 +56,7 @@ After GPU dependencies are installed, run from the repository root:
 ```bash
 "$VLM_VENV/bin/python" -m unittest discover -s equi-agent/tests -p test_fairvision_local_vlm.py -v
 ```
+# Cluster compilation
+
+Generation explicitly sets `disable_compile=True` so Gemma runs without Python development headers or Triton compilation. This setting is recorded in each run configuration. After updating inference code, use a new output directory because saved runs include the script hash; keep the cohort and local model snapshot paths unchanged.
+
