@@ -200,21 +200,34 @@ class LocalVLMTests(unittest.TestCase):
             # The new family must use its own loader and retain its identity in reports.
             import transformers
             from unittest.mock import Mock
-            args.model, args.out_dir = "gemma4", root / "gemma4"
             gemma4_model = Model()
             gemma4_model.config = argparse.Namespace(model_type="gemma4_unified")
             multimodal_loader = Mock()
             multimodal_loader.from_pretrained.return_value = gemma4_model
+            for name, model_id in (("gemma4", "google/gemma-4-12B"),
+                                   ("gemma4-it", "google/gemma-4-12B-it")):
+                args.model, args.out_dir = name, root / name
+                multimodal_loader.reset_mock()
+                with patch.object(transformers, "AutoModelForMultimodalLM", multimodal_loader, create=True), \
+                     patch.object(AutoProcessor, "from_pretrained", return_value=Processor()), \
+                     patch.object(AutoModelForImageTextToText, "from_pretrained") as old_loader, \
+                     patch("builtins.print"):
+                    self.assertEqual(vlm.infer(args), 0)
+                    old_loader.assert_not_called()
+                    multimodal_loader.from_pretrained.assert_called_once()
+                config, _, rows = reporting.load_run(args.out_dir)
+                self.assertEqual(config["model_id"], model_id)
+                self.assertEqual(rows[0]["model_name"], name)
+            # Fail before loading large weights when a downloaded processor lacks a template.
+            args.out_dir = root / "no-template"
+            processor = Processor()
+            processor.chat_template = None
+            multimodal_loader.reset_mock()
             with patch.object(transformers, "AutoModelForMultimodalLM", multimodal_loader, create=True), \
-                 patch.object(AutoProcessor, "from_pretrained", return_value=Processor()), \
-                 patch.object(AutoModelForImageTextToText, "from_pretrained") as old_loader, \
-                 patch("builtins.print"):
-                self.assertEqual(vlm.infer(args), 0)
-                old_loader.assert_not_called()
-                multimodal_loader.from_pretrained.assert_called_once()
-            config, _, rows = reporting.load_run(args.out_dir)
-            self.assertEqual(config["model_id"], "google/gemma-4-12B")
-            self.assertEqual(rows[0]["model_name"], "gemma4")
+                 patch.object(AutoProcessor, "from_pretrained", return_value=processor):
+                with self.assertRaisesRegex(ValueError, "Processor has no chat template"):
+                    vlm.infer(args)
+                multimodal_loader.from_pretrained.assert_not_called()
 
 
 if __name__ == "__main__":

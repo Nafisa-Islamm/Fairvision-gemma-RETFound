@@ -1,5 +1,7 @@
 # Gemma 4 12B on Newton
 
+**Update:** the requested `google/gemma-4-12B` download was observed on Newton to have no processor chat template. For this instruction-based diagnosis evaluation, follow [the instruction-tuned checkpoint guide](GEMMA4_IT_NEWTON.md) instead. It uses the official Transformers documentation's `google/gemma-4-12B-it` checkpoint and retains a separate `gemma4-it` identity. Do not invent or copy a Gemma 3 chat template onto the base checkpoint.
+
 This workflow uses the requested `google/gemma-4-12B` checkpoint, `AutoModelForMultimodalLM`, the existing FairVision manifest, and the same prompts and image grids. It adds a `gemma4` model identity and report label. The architecture must be `gemma4_unified` and the checkpoint must provide a chat template; if either check fails, stop and confirm the intended checkpoint rather than inventing a template. No fine-tuning is performed.
 
 Keep the old environments and `fairvision-vlm-results-eager` unchanged. The separate environment pins the inspected official Transformers commit `f348d3dcfa9317bed603e01b8ca22b11fe59615c` (5.21.0.dev0); do not install the old `requirements-gpu.txt` over it. Compilation remains disabled. The old 4.53.3 runtime is insufficient for Gemma 4.
