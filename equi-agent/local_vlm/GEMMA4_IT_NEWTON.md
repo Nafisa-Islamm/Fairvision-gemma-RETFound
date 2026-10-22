@@ -74,3 +74,29 @@ Check that reporting completed with exit `0:0`, then read:
 ```bash
 cat "$VLM_OUTPUT_ROOT/table/table1_local_models.md"
 ```
+
+## Recover unquoted confidence formatting without rerunning inference
+
+Observed in the first 750-case IT run: 748 valid predictions, two JSON errors where
+the complete response used `"confidence": high` instead of `"confidence": "high"`.
+The diagnoses were already explicit integers. Do not edit diagnoses, discard patients,
+change ground truth, or resubmit all cases. The following narrowly defined recovery
+changes only that confidence formatting at a JSON parser error, validates the resulting
+response with the original parser, and saves a NEW derived run. All raw responses and
+the entire source directory remain unchanged. Other kinds of errors remain errors.
+
+After updating the code, use CPU resources:
+
+```bash
+srun --account=ytian --partition=normal --ntasks=1 --cpus-per-task=1 --mem=4G --time=00:10:00 "$HOME/.venvs/fairvision-cpu-py311/bin/python" equi-agent/scripts/recover_fairvision_json.py --run-dir "$HOME/fairvision-vlm-results-gemma4-it/gemma4-it" --out-dir "$HOME/fairvision-vlm-results-gemma4-it/gemma4-it-recovered"
+srun --account=ytian --partition=normal --ntasks=1 --cpus-per-task=1 --mem=4G --time=00:10:00 "$HOME/.venvs/fairvision-cpu-py311/bin/python" equi-agent/scripts/report_fairvision_local_vlm.py --run-dirs "$HOME/fairvision-vlm-results-gemma4-it/gemma4-it-recovered" --out-dir "$HOME/fairvision-vlm-results-gemma4-it/table-recovered"
+cat "$HOME/fairvision-vlm-results-gemma4-it/table-recovered/table1_local_models.md"
+```
+
+Require `Valid predictions: 750/750; remaining errors: 0`. An existing destination is
+refused; do not delete source results or overwrite the original CSV. The recovery audit
+records each repaired response and original error, source hashes and a new run fingerprint.
+The reporter verifies the audit checksum and labels formatting recovery in the Markdown
+and report metadata. Report both the initial 2/750 formatting-failure rate and the use of
+this recovery rule; for fair comparisons, use the same rule for every evaluated model.
+This operation does not generate new model predictions or validate clinical correctness.

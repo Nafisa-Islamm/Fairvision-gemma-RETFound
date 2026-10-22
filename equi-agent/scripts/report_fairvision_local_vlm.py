@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -45,6 +46,10 @@ def summarize(rows, min_group_size=1):
 def load_run(directory):
     directory = Path(directory)
     config = json.loads((directory / "run_config.json").read_text())
+    if "postprocessing" in config:
+        audit_hash = hashlib.sha256((directory / "recovery_audit.json").read_bytes()).hexdigest()
+        if audit_hash != config["postprocessing"]["audit_sha256"]:
+            raise ValueError("Formatting recovery audit hash mismatch")
     cohort = json.loads((directory / "cohort.json").read_text())
     if digest(cohort) != config["cohort_sha256"]:
         raise ValueError(f"Cohort digest mismatch: {directory}")
@@ -127,10 +132,16 @@ def report(args):
             previous_task = row["task"]
         latex.append(" & ".join([label, "OCT/SLO", *scores]) + r" \\")
     latex.extend([r"\hline", r"\end{tabular}"])
+    for config, _, _ in runs:
+        if "postprocessing" in config:
+            lines.extend(["", f"Formatting recovery applied to {MODEL_LABELS[config['model']]}: "
+                          "see recovery_audit.json in its run directory. Original responses were retained; "
+                          "only unquoted confidence enums were quoted, with diagnoses unchanged."])
     (out / "table1_local_models.md").write_text("\n".join(lines) + "\n")
     (out / "table1_local_models.tex").write_text("\n".join(latex) + "\n")
     atomic_json(out / "report_config.json", dict(
         runs=[str(Path(p).resolve()) for p in args.run_dirs], min_group_size=args.min_group_size,
+        postprocessing=[config.get("postprocessing") for config, _, _ in runs],
         age_bins="<50, 50–69, >=70", attributes=ATTRIBUTES, f1_average="macro",
         fixed_labels=[0, 1], zero_division=0, unknown_groups_excluded=True,
         subgroup_rule="All observed marginal groups meeting min_group_size, including single-class groups.",
