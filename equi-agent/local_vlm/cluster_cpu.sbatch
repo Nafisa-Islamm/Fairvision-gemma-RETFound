@@ -22,8 +22,15 @@ case "$stage" in
       --manifest "${FAIRVISION_MANIFEST:-$output_root/cohort.csv}" --data-root "$FAIRVISION_DATA_ROOT"
     ;;
   report)
+    run_dirs=()
+    read -r -a report_models <<< "${VLM_REPORT_MODELS:-medgemma gemma}"
+    for report_model in "${report_models[@]}"; do
+      case "$report_model" in medgemma|gemma|gemma4) ;; *) echo "Unknown report model: $report_model" >&2; exit 1 ;; esac
+      run_dirs+=("$output_root/$report_model")
+    done
+    [[ ${#run_dirs[@]} -gt 0 ]] || { echo "No report models selected" >&2; exit 1; }
     "$venv/bin/python" equi-agent/scripts/report_fairvision_local_vlm.py \
-      --run-dirs "$output_root/medgemma" "$output_root/gemma" --out-dir "$output_root/table"
+      --run-dirs "${run_dirs[@]}" --out-dir "$output_root/table"
     ;;
   *) echo "Pass check or report" >&2; exit 1 ;;
 esac

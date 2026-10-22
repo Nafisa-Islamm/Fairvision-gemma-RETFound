@@ -6,6 +6,8 @@ multimodal baselines using SLO, an eight-slice OCT grid and demographic metadata
 No existing retinal foundation model is retrained and no paid inference API is used.
 
 Start with **[the Newton/Stokes step-by-step guide](STOKES_NEWTON.md)**.
+For **Gemma 4 12B**, use **[the separate Gemma 4 Newton guide](GEMMA4_NEWTON.md)**
+and `install_gemma4.sh`; keep the original model environments unchanged.
 It gives the clone, installation, dataset check, model-path setup, GPU smoke/full
 jobs, resume and CPU reporting commands. The selected dataset root is configured
 by FAIRVISION_DATA_ROOT; Amd/Dr/Glaucoma and case variations of Test are supported.

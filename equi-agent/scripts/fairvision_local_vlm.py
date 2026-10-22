@@ -15,7 +15,9 @@ import numpy as np
 from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[2]
-MODELS = {"medgemma": "google/medgemma-4b-it", "gemma": "google/gemma-3-4b-it"}
+MODELS = {"medgemma": "google/medgemma-4b-it", "gemma": "google/gemma-3-4b-it",
+          "gemma4": "google/gemma-4-12B"}
+MODEL_LABELS = {"medgemma": "MedGemma 4B", "gemma": "Gemma 3 4B", "gemma4": "Gemma 4 12B"}
 TASKS = ("glaucoma", "amd", "dr")
 VERSION = "fairvision-local-vlm-v1"
 # Same disease instructions as the repository's standalone baselines.
@@ -320,6 +322,14 @@ def infer(args):
     import fcntl
     import torch
     from transformers import AutoModelForImageTextToText, AutoProcessor
+    if args.model == "gemma4":
+        try:
+            from transformers import AutoModelForMultimodalLM
+        except ImportError as exc:
+            raise RuntimeError("Gemma 4 needs its separate environment: run install_gemma4.sh") from exc
+        model_loader = AutoModelForMultimodalLM
+    else:
+        model_loader = AutoModelForImageTextToText
     cases = prepare_cases(args)
     snapshot = Path(args.model_path).expanduser().resolve()
     if not snapshot.is_dir():
@@ -371,12 +381,15 @@ def infer(args):
                (args.retry_errors and results[c["task"], c["case_id"]]["status"] != "ok") for c in cases):
             torch.manual_seed(2026)
             processor = AutoProcessor.from_pretrained(snapshot, local_files_only=True)
-            model = AutoModelForImageTextToText.from_pretrained(
+            if not processor.chat_template:
+                raise ValueError("Checkpoint has no chat template; confirm the intended instruction-tuned checkpoint before inference")
+            model = model_loader.from_pretrained(
                 snapshot, torch_dtype=dtype, local_files_only=True,
                 device_map={"": args.device}, attn_implementation="eager").eval()
             model_type = model.config.model_type
-            if model_type != "gemma3":
-                raise ValueError(f"Expected multimodal Gemma3 checkpoint, got {model_type}")
+            expected_type = "gemma4_unified" if args.model == "gemma4" else "gemma3"
+            if model_type != expected_type:
+                raise ValueError(f"Expected {expected_type} checkpoint, got {model_type}")
             print(f"Loaded {args.model} on {args.device}; {len(cases)} cases", flush=True)
             for index, case in enumerate(cases, 1):
                 key = (case["task"], case["case_id"])

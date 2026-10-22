@@ -153,6 +153,7 @@ class LocalVLMTests(unittest.TestCase):
                 return self
 
         class Processor:
+            chat_template = "fixture"
             def apply_chat_template(self, messages, **kwargs):
                 self.messages = messages
                 return Inputs(input_ids=torch.tensor([[1]]))
@@ -196,6 +197,24 @@ class LocalVLMTests(unittest.TestCase):
             args.max_new_tokens = 128
             with self.assertRaisesRegex(ValueError, "configuration/cohort changed"):
                 vlm.infer(args)
+            # The new family must use its own loader and retain its identity in reports.
+            import transformers
+            from unittest.mock import Mock
+            args.model, args.out_dir = "gemma4", root / "gemma4"
+            gemma4_model = Model()
+            gemma4_model.config = argparse.Namespace(model_type="gemma4_unified")
+            multimodal_loader = Mock()
+            multimodal_loader.from_pretrained.return_value = gemma4_model
+            with patch.object(transformers, "AutoModelForMultimodalLM", multimodal_loader, create=True), \
+                 patch.object(AutoProcessor, "from_pretrained", return_value=Processor()), \
+                 patch.object(AutoModelForImageTextToText, "from_pretrained") as old_loader, \
+                 patch("builtins.print"):
+                self.assertEqual(vlm.infer(args), 0)
+                old_loader.assert_not_called()
+                multimodal_loader.from_pretrained.assert_called_once()
+            config, _, rows = reporting.load_run(args.out_dir)
+            self.assertEqual(config["model_id"], "google/gemma-4-12B")
+            self.assertEqual(rows[0]["model_name"], "gemma4")
 
 
 if __name__ == "__main__":

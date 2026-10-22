@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sklearn.metrics import confusion_matrix, f1_score
 
-from fairvision_local_vlm import TASKS, atomic_json, binary, digest, read_csv, write_csv
+from fairvision_local_vlm import MODEL_LABELS, TASKS, atomic_json, binary, digest, read_csv, write_csv
 
 ATTRIBUTES = ("race", "ethnicity", "sex_gender", "age_group")
 UNKNOWN = {"", "unknown", "nan", "none", "not available", "missing"}
@@ -119,7 +119,7 @@ def report(args):
     previous_task = None
     for row in table:
         scores = ["--" if row[key] is None else f"{row[key]:.3f}" for key in METRICS]
-        label = "MedGemma 4B" if row["model"] == "medgemma" else "Gemma 3 4B"
+        label = MODEL_LABELS[row["model"]]
         lines.append("| " + " | ".join([row["task"], label, "OCT/SLO", *scores, row["status"]]) + " |")
         if row["task"] != previous_task:
             title = {"glaucoma": "Glaucoma", "amd": "AMD", "dr": "Diabetic retinopathy"}[row["task"]]

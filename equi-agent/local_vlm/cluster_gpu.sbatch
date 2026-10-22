@@ -11,8 +11,8 @@
 set -euo pipefail
 : "${REPO_ROOT:?Export the absolute RETFound checkout path before submission}"
 : "${FAIRVISION_DATA_ROOT:?Export the directory containing FairVision data}"
-model="${1:?Pass medgemma or gemma}"
-case "$model" in medgemma|gemma) ;; *) echo "Pass medgemma or gemma" >&2; exit 1 ;; esac
+model="${1:?Pass medgemma, gemma, or gemma4}"
+case "$model" in medgemma|gemma|gemma4) ;; *) echo "Pass medgemma, gemma, or gemma4" >&2; exit 1 ;; esac
 cd "$REPO_ROOT"
 venv="${VLM_VENV:-$REPO_ROOT/.venv}"
 output_root="${VLM_OUTPUT_ROOT:-$REPO_ROOT/equi-agent/outputs/local_vlm}"
