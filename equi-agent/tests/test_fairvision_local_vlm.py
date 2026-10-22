@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
+from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import fairvision_local_vlm as vlm
@@ -154,9 +155,10 @@ class LocalVLMTests(unittest.TestCase):
 
         class Processor:
             chat_template = "fixture"
+            image_processor = argparse.Namespace(resample=Image.Resampling.LANCZOS)
             def apply_chat_template(self, messages, **kwargs):
                 self.messages = messages
-                return Inputs(input_ids=torch.tensor([[1]]))
+                return Inputs(input_ids=torch.tensor([[1]]), pixel_values=torch.zeros(1))
 
             def decode(self, *args, **kwargs):
                 return '{"dr_detected":0,"confidence":"low","reasoning":"fixture"}'
@@ -212,6 +214,7 @@ class LocalVLMTests(unittest.TestCase):
                 multimodal_loader.reset_mock()
                 with patch.object(transformers, "AutoModelForMultimodalLM", multimodal_loader, create=True), \
                      patch.object(AutoProcessor, "from_pretrained", return_value=Processor()), \
+                     patch.object(vlm, "muse_preprocessing_config", return_value=dict(torchvision="0.27.0", device="cpu", resample="LANCZOS")), \
                      patch.object(AutoModelForImageTextToText, "from_pretrained") as old_loader, \
                      patch("builtins.print"):
                     self.assertEqual(vlm.infer(args), 0)
@@ -226,6 +229,7 @@ class LocalVLMTests(unittest.TestCase):
             processor.chat_template = None
             multimodal_loader.reset_mock()
             with patch.object(transformers, "AutoModelForMultimodalLM", multimodal_loader, create=True), \
+                 patch.object(vlm, "muse_preprocessing_config", return_value=dict(torchvision="0.27.0", device="cpu", resample="LANCZOS")), \
                  patch.object(AutoProcessor, "from_pretrained", return_value=processor):
                 with self.assertRaisesRegex(ValueError, "Processor has no chat template"):
                     vlm.infer(args)

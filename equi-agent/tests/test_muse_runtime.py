@@ -11,6 +11,24 @@ except ImportError:
 
 @unittest.skipUnless(AVAILABLE, "Requires the separate modern multimodal environment")
 class MuseRuntimeTest(unittest.TestCase):
+    def test_native_lanczos_cpu_image_processing(self):
+        import torchvision
+        from packaging.version import Version
+        if Version(torchvision.__version__.split("+")[0]) < Version("0.27"):
+            self.skipTest("Native LANCZOS requires the updated Muse environment")
+        from PIL import Image
+        from unittest.mock import patch
+        from torchvision.transforms.v2 import functional as tvF
+        from transformers import MuseGlimmerImageProcessor
+        processor = MuseGlimmerImageProcessor()
+        with patch.object(tvF, "resize", wraps=tvF.resize) as resize:
+            inputs = processor(images=[Image.new("RGB", (128, 128), "white"),
+                                       Image.new("RGB", (128, 128), "black")], return_tensors="pt")
+        self.assertTrue(any(call.kwargs.get("interpolation") == tvF.InterpolationMode.LANCZOS
+                            for call in resize.call_args_list))
+        self.assertEqual(inputs["pixel_values"].device.type, "cpu")
+        self.assertEqual(inputs["image_grid_thw"].shape[0], 2)
+
     def test_two_image_generation_after_reload(self):
         import torch
         config = MuseGlimmerConfig(

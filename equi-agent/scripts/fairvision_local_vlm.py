@@ -321,6 +321,14 @@ def prepare_cases(args):
     return cases
 
 
+def muse_preprocessing_config():
+    import torchvision
+    from packaging.version import Version
+    if Version(torchvision.__version__.split("+")[0]) < Version("0.27"):
+        raise ValueError("Muse requires native LANCZOS preprocessing. Use install_muse.sh in its separate environment (torchvision >=0.27).")
+    return dict(torchvision=torchvision.__version__, device="cpu", resample="LANCZOS")
+
+
 def infer(args):
     import fcntl
     import torch
@@ -351,6 +359,8 @@ def infer(args):
                       python=platform.python_version(), torch=torch.__version__)
         import transformers
         config["transformers"] = transformers.__version__
+        if args.model == "muse":
+            config["image_preprocessing"] = muse_preprocessing_config()
         fingerprint = digest(config)
         config_path = out / "run_config.json"
         if config_path.exists() and json.loads(config_path.read_text()) != config:
@@ -387,6 +397,8 @@ def infer(args):
             if not processor.chat_template:
                 raise ValueError("Processor has no chat template. Confirm the instruction-tuned checkpoint and processor files. "
                                  "For Gemma 4, use google/gemma-4-12B-it with --model gemma4-it.")
+            if args.model == "muse" and processor.image_processor.resample != Image.Resampling.LANCZOS:
+                raise ValueError("Muse checkpoint does not specify LANCZOS; inspect the processor configuration")
             model = model_loader.from_pretrained(
                 snapshot, torch_dtype=dtype, local_files_only=True,
                 device_map={"": args.device}, attn_implementation="eager").eval()
@@ -408,7 +420,10 @@ def infer(args):
                         {"type": "image", "image": slo}, {"type": "image", "image": oct_grid}]}]
                     inputs = processor.apply_chat_template(
                         messages, add_generation_prompt=True, tokenize=True,
-                        return_dict=True, return_tensors="pt").to(model.device, dtype=dtype)
+                        return_dict=True, return_tensors="pt")
+                    if args.model == "muse" and inputs["pixel_values"].device.type != "cpu":
+                        raise ValueError("Muse LANCZOS resizing must run on CPU before tensors are moved to CUDA")
+                    inputs = inputs.to(model.device, dtype=dtype)
                     input_length = inputs["input_ids"].shape[-1]
                     with torch.inference_mode():
                         # Gemma checkpoints may enable compilation through their cache configuration.

@@ -6,6 +6,8 @@ Support is added as `--model muse`, retaining the same cohort, prompts, image gr
 
 Local verification: the original 10 pipeline tests plus two formatting-recovery tests passed; loader-selection tests now include Muse. A separate tiny randomly initialized Muse model successfully reloaded and generated from two image inputs on CPU. This does not validate pretrained 30B weights, the actual downloaded processor, or H100 memory use.
 
+**Image-resizing compatibility:** the first actual processor check passed but warned that torchvision 0.21 substituted BICUBIC for LANCZOS. Muse has no registered PIL processor in the inspected implementation. The separate Muse installer now pins PyTorch 2.12.0 / torchvision 0.27.0 / CUDA 12.6 to support LANCZOS on CPU. The CPU counterparts passed real LANCZOS resizing and two-image generation tests locally; the CUDA installation and pretrained GPU inference still need validation on Newton. Gemma environments are unchanged. Muse inference requires torchvision >=0.27, checks CPU preprocessing, and records the image-processing version/mode in run_config.json.
+
 ## Check storage before large downloads
 
 On the Newton login node:
@@ -53,6 +55,7 @@ Require `Two-image processor check passed`. Missing templates, unsupported confi
 export VLM_VENV="$HOME/.venvs/fairvision-muse-py311"
 export PYTHON_BIN=/usr/bin/python3.11
 srun --account=ytian --partition=normal --ntasks=1 --cpus-per-task=2 --mem=12G --time=00:45:00 bash equi-agent/local_vlm/install_muse.sh
+srun --account=ytian --partition=normal --ntasks=1 --cpus-per-task=1 --mem=8G --time=00:10:00 "$VLM_VENV/bin/python" equi-agent/scripts/verify_muse_processor.py --model-path "$HOME/fairvision-models/Muse-Glimmer-30B" --require-native-lanczos
 srun --account=ytian --partition=normal --ntasks=1 --cpus-per-task=2 --mem=8G --time=03:00:00 "$VLM_VENV/bin/python" -c 'import os; from huggingface_hub import snapshot_download; print(snapshot_download(repo_id="meta-models/Muse-Glimmer-30B",local_dir=os.path.expanduser("~/fairvision-models/Muse-Glimmer-30B"),max_workers=2))'
 ```
 
