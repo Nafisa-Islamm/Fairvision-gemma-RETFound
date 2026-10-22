@@ -10,6 +10,8 @@ For **Gemma 4 12B**, use **[the separate Gemma 4 Newton guide](GEMMA4_NEWTON.md)
 and `install_gemma4.sh`; keep the original model environments unchanged.
 If the base Gemma 4 processor has no chat template, use the separate
 [Gemma 4 instruction-tuned recovery guide](GEMMA4_IT_NEWTON.md).
+For **Muse Glimmer 30B**, start with [storage and processor checks](MUSE_NEWTON.md)
+before downloading weights or requesting a GPU.
 It gives the clone, installation, dataset check, model-path setup, GPU smoke/full
 jobs, resume and CPU reporting commands. The selected dataset root is configured
 by FAIRVISION_DATA_ROOT; Amd/Dr/Glaucoma and case variations of Test are supported.

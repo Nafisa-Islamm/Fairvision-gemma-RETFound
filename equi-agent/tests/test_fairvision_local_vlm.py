@@ -205,8 +205,10 @@ class LocalVLMTests(unittest.TestCase):
             multimodal_loader = Mock()
             multimodal_loader.from_pretrained.return_value = gemma4_model
             for name, model_id in (("gemma4", "google/gemma-4-12B"),
-                                   ("gemma4-it", "google/gemma-4-12B-it")):
+                                   ("gemma4-it", "google/gemma-4-12B-it"),
+                                   ("muse", "meta-models/Muse-Glimmer-30B")):
                 args.model, args.out_dir = name, root / name
+                gemma4_model.config.model_type = "muse_glimmer" if name == "muse" else "gemma4_unified"
                 multimodal_loader.reset_mock()
                 with patch.object(transformers, "AutoModelForMultimodalLM", multimodal_loader, create=True), \
                      patch.object(AutoProcessor, "from_pretrained", return_value=Processor()), \

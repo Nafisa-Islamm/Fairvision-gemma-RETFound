@@ -16,9 +16,11 @@ from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS = {"medgemma": "google/medgemma-4b-it", "gemma": "google/gemma-3-4b-it",
-          "gemma4": "google/gemma-4-12B", "gemma4-it": "google/gemma-4-12B-it"}
+          "gemma4": "google/gemma-4-12B", "gemma4-it": "google/gemma-4-12B-it",
+          "muse": "meta-models/Muse-Glimmer-30B"}
 MODEL_LABELS = {"medgemma": "MedGemma 4B", "gemma": "Gemma 3 4B",
-                "gemma4": "Gemma 4 12B", "gemma4-it": "Gemma 4 12B IT"}
+                "gemma4": "Gemma 4 12B", "gemma4-it": "Gemma 4 12B IT",
+                "muse": "Muse Glimmer 30B"}
 TASKS = ("glaucoma", "amd", "dr")
 VERSION = "fairvision-local-vlm-v1"
 # Same disease instructions as the repository's standalone baselines.
@@ -323,11 +325,11 @@ def infer(args):
     import fcntl
     import torch
     from transformers import AutoModelForImageTextToText, AutoProcessor
-    if args.model in ("gemma4", "gemma4-it"):
+    if args.model in ("gemma4", "gemma4-it", "muse"):
         try:
             from transformers import AutoModelForMultimodalLM
         except ImportError as exc:
-            raise RuntimeError("Gemma 4 needs its separate environment: run install_gemma4.sh") from exc
+            raise RuntimeError("This model needs the modern multimodal Transformers environment; see its model-specific guide") from exc
         model_loader = AutoModelForMultimodalLM
     else:
         model_loader = AutoModelForImageTextToText
@@ -383,13 +385,14 @@ def infer(args):
             torch.manual_seed(2026)
             processor = AutoProcessor.from_pretrained(snapshot, local_files_only=True)
             if not processor.chat_template:
-                raise ValueError("Processor has no chat template. For Gemma 4 instruction-based evaluation, "
-                                 "download google/gemma-4-12B-it and use --model gemma4-it with a new output directory.")
+                raise ValueError("Processor has no chat template. Confirm the instruction-tuned checkpoint and processor files. "
+                                 "For Gemma 4, use google/gemma-4-12B-it with --model gemma4-it.")
             model = model_loader.from_pretrained(
                 snapshot, torch_dtype=dtype, local_files_only=True,
                 device_map={"": args.device}, attn_implementation="eager").eval()
             model_type = model.config.model_type
-            expected_type = "gemma4_unified" if args.model in ("gemma4", "gemma4-it") else "gemma3"
+            expected_type = ("muse_glimmer" if args.model == "muse" else
+                             "gemma4_unified" if args.model in ("gemma4", "gemma4-it") else "gemma3")
             if model_type != expected_type:
                 raise ValueError(f"Expected {expected_type} checkpoint, got {model_type}")
             print(f"Loaded {args.model} on {args.device}; {len(cases)} cases", flush=True)

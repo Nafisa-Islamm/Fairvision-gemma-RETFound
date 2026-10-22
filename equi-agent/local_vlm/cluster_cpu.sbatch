@@ -25,7 +25,7 @@ case "$stage" in
     run_dirs=()
     read -r -a report_models <<< "${VLM_REPORT_MODELS:-medgemma gemma}"
     for report_model in "${report_models[@]}"; do
-      case "$report_model" in medgemma|gemma|gemma4|gemma4-it) ;; *) echo "Unknown report model: $report_model" >&2; exit 1 ;; esac
+      case "$report_model" in medgemma|gemma|gemma4|gemma4-it|muse) ;; *) echo "Unknown report model: $report_model" >&2; exit 1 ;; esac
       run_dirs+=("$output_root/$report_model")
     done
     [[ ${#run_dirs[@]} -gt 0 ]] || { echo "No report models selected" >&2; exit 1; }
