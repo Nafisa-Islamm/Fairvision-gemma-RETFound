@@ -12,6 +12,10 @@ If the base Gemma 4 processor has no chat template, use the separate
 [Gemma 4 instruction-tuned recovery guide](GEMMA4_IT_NEWTON.md).
 For **Muse Glimmer 30B**, start with [storage and processor checks](MUSE_NEWTON.md)
 before downloading weights or requesting a GPU.
+For a research extension using the saved experts, see the
+[fairness-aware routing plan and CPU audit](FAIR_ROUTING_RESEARCH.md).
+The [GRPO routing guide](GRPO_NEWTON.md) adds an actual small neural GRPO router,
+supervised baselines and explicit training/validation cache preparation.
 It gives the clone, installation, dataset check, model-path setup, GPU smoke/full
 jobs, resume and CPU reporting commands. The selected dataset root is configured
 by FAIRVISION_DATA_ROOT; Amd/Dr/Glaucoma and case variations of Test are supported.

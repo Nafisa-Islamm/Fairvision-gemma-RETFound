@@ -17,9 +17,13 @@ stage="${1:-check}"
 case "$stage" in
   check)
     : "${FAIRVISION_DATA_ROOT:?Export your FairVision data directory}"
-    "$venv/bin/python" equi-agent/scripts/fairvision_local_vlm.py prepare-manifest --output "$output_root/cohort.csv"
+    if [[ "${VLM_SPLIT:-test}" == "test" ]]; then
+      "$venv/bin/python" equi-agent/scripts/fairvision_local_vlm.py prepare-manifest --output "$output_root/cohort.csv"
+    else
+      : "${FAIRVISION_MANIFEST:?Training/validation checks require an explicit split manifest}"
+    fi
     "$venv/bin/python" equi-agent/scripts/fairvision_local_vlm.py check \
-      --manifest "${FAIRVISION_MANIFEST:-$output_root/cohort.csv}" --data-root "$FAIRVISION_DATA_ROOT"
+      --manifest "${FAIRVISION_MANIFEST:-$output_root/cohort.csv}" --split "${VLM_SPLIT:-test}" --data-root "$FAIRVISION_DATA_ROOT"
     ;;
   report)
     run_dirs=()

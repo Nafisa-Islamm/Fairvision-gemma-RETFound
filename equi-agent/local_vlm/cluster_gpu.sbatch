@@ -52,6 +52,7 @@ for index in range(torch.cuda.device_count()):
     print(f"GPU {index}: {props.name}; VRAM: {props.total_memory / 2**30:.1f} GiB", flush=True)
 PY
 args=(--manifest "${FAIRVISION_MANIFEST:-$output_root/cohort.csv}"
+      --split "${VLM_SPLIT:-test}"
       --data-root "$FAIRVISION_DATA_ROOT" --model "$model" --model-path "$snapshot"
       --device cuda --dtype "${VLM_DTYPE:-bfloat16}" --max-new-tokens "${MAX_NEW_TOKENS:-512}")
 if [[ "${SMOKE:-0}" == "1" ]]; then

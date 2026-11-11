@@ -234,6 +234,18 @@ class LocalVLMTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Processor has no chat template"):
                     vlm.infer(args)
                 multimodal_loader.from_pretrained.assert_not_called()
+            # Training-cache inference is explicit; the default still rejects training rows.
+            args.model, args.out_dir, args.split = "gemma", root / "training-out", "training"
+            args.manifest = root / "training.csv"
+            vlm.write_csv(args.manifest, [dict(task="dr", filename="case.npz", y_true=0, split="training")])
+            with patch.object(AutoProcessor, "from_pretrained", return_value=Processor()), \
+                 patch.object(AutoModelForImageTextToText, "from_pretrained", return_value=Model()), \
+                 patch("builtins.print"):
+                self.assertEqual(vlm.infer(args), 0)
+            self.assertEqual(json.loads((args.out_dir / "run_config.json").read_text())["data_split"], "training")
+            args.split = "test"
+            with self.assertRaisesRegex(ValueError, "non-test"):
+                vlm.infer(args)
 
 
 if __name__ == "__main__":

@@ -177,15 +177,16 @@ def age_group(age):
     return "younger" if age < 50 else "middle-aged" if age < 70 else "older"
 
 
-def load_cohort(manifest, tasks=TASKS, limit=0):
+def load_cohort(manifest, tasks=TASKS, limit=0, expected_split="test"):
     cases, seen, counts = [], set(), dict.fromkeys(tasks, 0)
     for row in read_csv(manifest):
         task = value(row, "task", "Task_Folder", "disease_folder", "disease").lower()
         if task not in tasks:
             continue
         split = value(row, "split", default="test").lower()
-        if split not in ("test", "testing"):
-            raise ValueError(f"Selected manifest contains non-test row: {task}/{split}")
+        split = {"train": "training", "val": "validation", "valid": "validation", "testing": "test"}.get(split, split)
+        if split != expected_split:
+            raise ValueError(f"Selected manifest contains non-{expected_split} row: {task}/{split}")
         filename = value(row, "filename", "npz_path", "image_path", "filepath", "path", "image_id", default="")
         if not filename or Path(filename).suffix.lower() != ".npz":
             raise ValueError("Each selected manifest row needs an NPZ filename/path")
@@ -207,25 +208,32 @@ def load_cohort(manifest, tasks=TASKS, limit=0):
     return cases
 
 
-def resolve_npz(filename, manifest, data_root):
-    """Support legacy disease/Test and documented shared Test layouts; reject ambiguity."""
+def resolve_npz(filename, manifest, data_root, split="test"):
+    """Resolve only the explicitly requested split; reject ambiguity and split-path mismatches."""
+    aliases = {"test": {"test", "testing"}, "training": {"train", "training"},
+               "validation": {"val", "valid", "validation"}}
+    wanted = aliases[split]
     source, root = Path(filename).expanduser(), Path(data_root).expanduser().resolve()
+    if len(source.parts) >= 2:
+        path_split = source.parts[-2].casefold()
+        if path_split in set.union(*aliases.values()) and path_split not in wanted:
+            raise ValueError("Manifest file path belongs to a different split")
     candidates = [source] if source.is_absolute() else [Path(manifest).resolve().parent / source, root / source]
     if not source.is_absolute():
         parts = source.parts
         if parts and parts[0].lower() == "data":
             candidates.append(root.joinpath(*parts[1:]))
-        candidates.append(root / "Test" / source.name)
+        candidates.append(root / {"test": "Test", "training": "Training", "validation": "Validation"}[split] / source.name)
         # Drive exports may use Amd/Dr while the paper manifest uses AMD/DR.
         # Match actual disease/split directory names; never alter source data.
         if root.is_dir():
             parents = [root]
-            if len(parts) >= 3 and parts[-2].casefold() == "test":
+            if len(parts) >= 3 and parts[-2].casefold() in wanted:
                 disease = parts[-3].casefold()
                 parents.extend(p for p in root.iterdir() if p.is_dir() and p.name.casefold() == disease)
             for parent in parents:
                 candidates.extend(p / source.name for p in parent.iterdir()
-                                  if p.is_dir() and p.name.casefold() == "test")
+                                  if p.is_dir() and p.name.casefold() in wanted)
     existing = sorted({path.resolve() for path in candidates if path.is_file()})
     if len(existing) != 1:
         raise ValueError(f"Need exactly one file for {filename}; found {existing}. Set --data-root or fix manifest paths.")
@@ -311,9 +319,9 @@ def download_model(args):
 
 
 def prepare_cases(args):
-    cases = load_cohort(args.manifest, args.tasks, args.limit_per_task)
+    cases = load_cohort(args.manifest, args.tasks, args.limit_per_task, getattr(args, "split", "test"))
     for case in cases:
-        path = resolve_npz(case["filename"], args.manifest, args.data_root)
+        path = resolve_npz(case["filename"], args.manifest, args.data_root, getattr(args, "split", "test"))
         load_images(path, args.oct_slices)
         case["npz_path"] = str(path)
         # Identity protects resume and cross-model comparison if data change.
@@ -356,7 +364,8 @@ def infer(args):
                       cohort_sha256=digest(cases), prompts=PROMPTS,
                       oct_slices=args.oct_slices, max_new_tokens=args.max_new_tokens,
                       dtype=args.dtype, device=args.device, do_sample=False, disable_compile=True, seed=2026,
-                      python=platform.python_version(), torch=torch.__version__)
+                      python=platform.python_version(), torch=torch.__version__,
+                      data_split=getattr(args, "split", "test"))
         import transformers
         config["transformers"] = transformers.__version__
         if args.model == "muse":
@@ -472,6 +481,8 @@ def main():
         sub.add_argument("--manifest", type=Path, default=ROOT / "equi-agent/outputs/local_vlm/cohort.csv")
         sub.add_argument("--data-root", type=Path, required=True)
         sub.add_argument("--tasks", nargs="+", choices=TASKS, default=list(TASKS))
+        sub.add_argument("--split", choices=("training", "validation", "test"), default="test",
+                         help="Explicit split; training/validation require manifests with matching split columns")
         sub.add_argument("--limit-per-task", type=int, default=0, help="Smoke runs only; 0 means entire cohort")
         sub.add_argument("--oct-slices", type=int, default=8)
         if command == "infer":
