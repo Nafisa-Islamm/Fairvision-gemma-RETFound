@@ -31,8 +31,10 @@ def fixture(split):
                                   race=race, age=40 + j, sex_gender="female", ethnicity="non-hispanic",
                                   npz_sha256=hashlib.sha256(case_id.encode()).hexdigest(), embedding=[],
                                   expert_preds=predictions, expert_confidence=["high", "moderate", "low"]))
-    return dict(format_version=1, split=split, experts=["gemma", "medgemma", "gemma4-it"], cases=cases,
-                provenance=dict(identity="patient_map", prompts_sha256=vlm.digest(vlm.PROMPTS), oct_slices=8))
+    experts = ["gemma", "medgemma", "gemma4-it"]
+    return dict(format_version=2, split=split, experts=experts, cases=cases,
+                provenance=dict(identity="patient_map", prompts_sha256=vlm.digest(vlm.PROMPTS), oct_slices=8,
+                                expert_protocols=[dict(model_id=vlm.MODELS[name], dtype="bfloat16") for name in experts]))
 
 
 class GRPORoutingTests(unittest.TestCase):
@@ -100,6 +102,29 @@ class GRPORoutingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Expected train"):
             data.validate_bundle(fixture("test"), "train")
 
+    def test_precision_protocol_must_match_for_each_expert_across_splits(self):
+        training, validation, test = fixture("train"), fixture("validation"), fixture("test")
+        # Different experts may use different precisions, but each one must be consistent.
+        for bundle in (training, validation, test):
+            bundle["provenance"]["expert_protocols"][0]["dtype"] = "float16"
+        data.check_separation(training, validation, test)
+        checkpoint = dict(split_identities=[grpo.identity_snapshot(training), grpo.identity_snapshot(validation)])
+        grpo.check_test_identity(checkpoint, test)
+        validation["provenance"]["expert_protocols"][0]["dtype"] = "bfloat16"
+        with self.assertRaisesRegex(ValueError, "precision/runtime protocol"):
+            data.check_separation(training, validation)
+        test["provenance"]["expert_protocols"][0]["dtype"] = "bfloat16"
+        with self.assertRaisesRegex(ValueError, "expert_protocol_sha256"):
+            grpo.check_test_identity(checkpoint, test)
+        old = fixture("train")
+        old["format_version"] = 1
+        with self.assertRaisesRegex(ValueError, "regenerate bundles"):
+            data.validate_bundle(old)
+        missing = fixture("train")
+        del missing["provenance"]["expert_protocols"]
+        with self.assertRaisesRegex(ValueError, "precision provenance"):
+            data.validate_bundle(missing)
+
     def test_existing_cache_adapter_rejects_relabeling_test_as_training(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -109,7 +134,8 @@ class GRPORoutingTests(unittest.TestCase):
             paths = []
             for e, name in enumerate(cache["experts"]):
                 path = root / name
-                config = dict(model=name, cohort_sha256=vlm.digest(cohort), prompts=vlm.PROMPTS, oct_slices=8)
+                config = dict(model=name, model_id=vlm.MODELS[name], dtype="bfloat16",
+                              cohort_sha256=vlm.digest(cohort), prompts=vlm.PROMPTS, oct_slices=8)
                 vlm.atomic_json(path / "cohort.json", cohort)
                 vlm.atomic_json(path / "run_config.json", config)
                 rows = [dict(**case, model_name=name, run_fingerprint=vlm.digest(config), status="ok",

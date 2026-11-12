@@ -166,6 +166,7 @@ def selection_score(data, predictions, minimum, threshold, weight):
 
 def identity_snapshot(data):
     return dict(experts=data["experts"], identity=data["provenance"]["identity"],
+                expert_protocol_sha256=digest(data["provenance"]["expert_protocols"]),
                 protocol=[data["provenance"].get("prompts_sha256"), data["provenance"].get("oct_slices")],
                 embedding_dim=len(data["cases"][0].get("embedding", [])),
                 patients=sorted({str(c["patient_id"]) for c in data["cases"]}),
@@ -176,7 +177,7 @@ def identity_snapshot(data):
 def check_test_identity(checkpoint, data):
     current = identity_snapshot(data)
     for old in checkpoint["split_identities"]:
-        for field in ("experts", "identity", "protocol", "embedding_dim"):
+        for field in ("experts", "identity", "protocol", "embedding_dim", "expert_protocol_sha256"):
             if current[field] != old[field]:
                 raise ValueError(f"Test protocol mismatch: {field}")
         for field in ("patients", "case_keys", "image_hashes"):
@@ -292,7 +293,7 @@ def train(args):
         atomic_json(output / "history.json", history)
         if score > best:
             best = score
-            checkpoint = dict(state_dict=router.state_dict(), reference_state_dict=reference.state_dict(),
+            checkpoint = dict(format_version=2, state_dict=router.state_dict(), reference_state_dict=reference.state_dict(),
                               settings=settings, scaler=scaler,
                               network=dict(input_dim=features.shape[1], hidden_dim=args.hidden_dim, num_experts=len(experts)),
                               config=config, best_epoch=epoch + 1, validation_score=score,
@@ -311,6 +312,8 @@ def evaluate(args):
         raise ValueError("Evaluation output exists; choose a new directory")
     data = load_bundle(args.data, "test")
     checkpoint = torch.load(args.checkpoint, map_location=args.device, weights_only=True)
+    if checkpoint.get("format_version") != 2:
+        raise ValueError("Checkpoint lacks precision-protocol checks; prepare new bundles and train a new router, preserving old artifacts")
     check_test_identity(checkpoint, data)
     verification = getattr(args, "verification", "none")
     if verification == "disagreement" and checkpoint["settings"]["mode"] != "arbitration":

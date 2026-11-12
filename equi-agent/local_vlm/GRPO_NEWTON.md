@@ -7,6 +7,12 @@ training in either workflow.
 
 This implementation adapts the supplied example into a trainable **small neural routing policy**. Frozen Gemma/MedGemma experts are not fine-tuned. It is categorical, one-step contextual-bandit GRPO with a separate differentiable fairness regularizer, not token-level GRPO training of a language model or a complete reproduction of RetinAgent. It has been tested on explicitly synthetic fixtures; no real FairVision routing model has yet been trained by the assistant.
 
+**Precision compatibility:** the current bundle/checkpoint format is version 2 and
+records per-expert checkpoint/precision/runtime settings. Existing version-1 bundles
+must be regenerated using `prepare` into new files. FP16 and BF16 outputs for the same
+expert cannot be mixed across training/validation/test. See [the V100 workflow](V100_NEWTON.md)
+before replacing queued H100 jobs; preserve existing BF16 experiment outputs.
+
 The full-data workflow is appropriate when its inference budget is available: it uses
 18,000 training and 3,000 validation cases per expert, keeping the existing 750-case
 test cohort separate. GPU batch jobs now print preparation progress every 100 cases

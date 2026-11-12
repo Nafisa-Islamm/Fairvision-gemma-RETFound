@@ -11,6 +11,8 @@ from report_fairvision_local_vlm import load_run
 ROLES = {"train": "training", "validation": "validation", "test": "test"}
 CONFIDENCE = ("low", "moderate", "high", "unknown")
 RACES = ("asian", "black", "white", "unknown")
+EXPERT_PROTOCOL_FIELDS = ("model_id", "model_config_sha256", "dtype", "max_new_tokens", "do_sample",
+                          "disable_compile", "seed", "device", "torch", "transformers", "image_preprocessing")
 
 
 def file_hash(path):
@@ -70,8 +72,10 @@ def prepare_bundle(run_dirs, split, output, patient_map=None, confirm_one_case_p
                       expert_confidence=[table[key].get("confidence", "unknown") for table in tables],
                       embedding=vectors.get(key, []))
         cases.append(record)
-    data = dict(format_version=1, split=split, experts=names, cases=cases,
+    protocols = [{field: config.get(field) for field in EXPERT_PROTOCOL_FIELDS} for config, _, _ in runs]
+    data = dict(format_version=2, split=split, experts=names, cases=cases,
                 provenance=dict(identity="patient_map" if patient_map else "asserted_one_case_per_patient",
+                                expert_protocols=protocols,
                                 patient_map_sha256=file_hash(patient_map) if patient_map else None,
                                 embedding_sha256=file_hash(embeddings) if embeddings else None,
                                 prompts_sha256=digest(runs[0][0]["prompts"]), oct_slices=runs[0][0]["oct_slices"],
@@ -84,13 +88,17 @@ def prepare_bundle(run_dirs, split, output, patient_map=None, confirm_one_case_p
 
 
 def validate_bundle(data, expected_split=None):
-    if data.get("format_version") != 1 or data.get("split") not in ROLES:
-        raise ValueError("Unsupported bundle format or split")
+    if data.get("format_version") != 2 or data.get("split") not in ROLES:
+        raise ValueError("Unsupported bundle format or split; regenerate bundles with the current prepare command")
     if expected_split and data["split"] != expected_split:
         raise ValueError(f"Expected {expected_split} bundle, got {data['split']}")
     experts = data["experts"]
     if len(experts) < 2 or len(experts) != len(set(experts)) or not data["cases"]:
         raise ValueError("Need distinct experts and nonempty cases")
+    protocols = data["provenance"].get("expert_protocols", [])
+    if len(protocols) != len(experts) or any(not protocol.get("model_id") or
+            protocol.get("dtype") not in ("bfloat16", "float16", "float32") for protocol in protocols):
+        raise ValueError("Missing per-expert checkpoint/precision provenance; regenerate bundles from original runs")
     seen, dimensions = set(), set()
     for case in data["cases"]:
         key = case["task"], case["case_id"]
@@ -129,6 +137,8 @@ def check_separation(*bundles):
         raise ValueError("Patient identity conventions differ between splits")
     if len({(b["provenance"].get("prompts_sha256"), b["provenance"].get("oct_slices")) for b in bundles}) != 1:
         raise ValueError("Prompt/image protocol differs between splits")
+    if len({digest(b["provenance"]["expert_protocols"]) for b in bundles}) != 1:
+        raise ValueError("Expert checkpoint/precision/runtime protocol differs between splits; do not mix FP16 and BF16 caches")
     for i, left in enumerate(bundles):
         for right in bundles[i + 1:]:
             for field in ("patient_id", "npz_sha256"):
