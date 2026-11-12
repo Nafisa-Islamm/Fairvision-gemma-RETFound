@@ -320,12 +320,17 @@ def download_model(args):
 
 def prepare_cases(args):
     cases = load_cohort(args.manifest, args.tasks, args.limit_per_task, getattr(args, "split", "test"))
-    for case in cases:
+    progress = getattr(args, "progress_every", 0)
+    if progress:
+        print(f"Checking {len(cases)} cases: loading images and hashing files.", flush=True)
+    for index, case in enumerate(cases, 1):
         path = resolve_npz(case["filename"], args.manifest, args.data_root, getattr(args, "split", "test"))
         load_images(path, args.oct_slices)
         case["npz_path"] = str(path)
         # Identity protects resume and cross-model comparison if data change.
         case["npz_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if progress and (index % progress == 0 or index == len(cases)):
+            print(f"Checked {index}/{len(cases)}: {case['task']}/{case['case_id']}", flush=True)
     return cases
 
 
@@ -485,6 +490,9 @@ def main():
                          help="Explicit split; training/validation require manifests with matching split columns")
         sub.add_argument("--limit-per-task", type=int, default=0, help="Smoke runs only; 0 means entire cohort")
         sub.add_argument("--oct-slices", type=int, default=8)
+        if command == "check":
+            sub.add_argument("--progress-every", type=int, default=0,
+                             help="Print a progress line every N cases; 0 preserves JSON-only output")
         if command == "infer":
             sub.add_argument("--model", choices=MODELS, required=True)
             sub.add_argument("--model-path", required=True)
@@ -500,8 +508,8 @@ def main():
     if args.command == "download":
         download_model(args)
         return 0
-    if args.oct_slices < 1 or args.limit_per_task < 0:
-        parser.error("oct-slices must be positive and limit-per-task nonnegative")
+    if args.oct_slices < 1 or args.limit_per_task < 0 or getattr(args, "progress_every", 0) < 0:
+        parser.error("oct-slices must be positive; limit-per-task and progress-every must be nonnegative")
     if args.command == "check":
         cases = prepare_cases(args)
         print(json.dumps({"cases": len(cases), "cohort_sha256": digest(cases),

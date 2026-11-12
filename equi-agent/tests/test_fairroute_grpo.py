@@ -142,6 +142,56 @@ class GRPORoutingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "different split"):
                 vlm.resolve_npz("AMD/test/case.npz", root / "manifest.csv", root / "raw", "training")
 
+    def test_small_balanced_pilot_uses_real_cells_without_duplication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("first", "repeat"):
+                with patch("builtins.print"):
+                    make_manifests(vlm.ROOT / "OphthalmicAgent/data", root / name,
+                                   training_per_cell=30, validation_per_cell=20)
+            training = vlm.read_csv(root / "first/training.csv")
+            validation = vlm.read_csv(root / "first/validation.csv")
+            self.assertEqual((len(training), len(validation)), (540, 320))
+            for split, rows in (("training", training), ("validation", validation)):
+                self.assertEqual(len(rows), len({(r["task"], r["case_id"]) for r in rows}))
+                self.assertEqual({r["split"] for r in rows}, {split})
+                self.assertEqual((root / f"first/{split}.csv").read_bytes(),
+                                 (root / f"repeat/{split}.csv").read_bytes())
+            self.assertFalse({(r["task"], r["case_id"]) for r in training} &
+                             {(r["task"], r["case_id"]) for r in validation})
+            config = json.loads((root / "first/manifest_config.json").read_text())
+            rare = next(r for r in config["cell_selection"] if r["split"] == "validation" and
+                        r["task"] == "dr" and r["race"] == "asian" and r["label"] == 1)
+            self.assertEqual((rare["available"], rare["selected"]), (2, 2))
+            self.assertTrue(rare["below_target"])
+            self.assertTrue(all(r["positive"] == 30 and r["negative"] == 30
+                                for r in config["race_class_support"]["training"]))
+            with self.assertRaisesRegex(ValueError, "Choose uniform"):
+                make_manifests(vlm.ROOT / "OphthalmicAgent/data", root / "bad", max_per_task=10,
+                               training_per_cell=30, validation_per_cell=20)
+
+    def test_check_progress_does_not_change_cohort_or_hashes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rows = []
+            for i in range(2):
+                name = f"case-{i}.npz"
+                np.savez(root / name, slo_fundus=np.zeros((16, 16, 3), dtype=np.uint8),
+                         oct_bscans=np.zeros((8, 16, 16), dtype=np.uint8))
+                rows.append(dict(task="dr", filename=name, y_true=i, split="training"))
+            vlm.write_csv(root / "manifest.csv", rows)
+            args = argparse.Namespace(manifest=root / "manifest.csv", data_root=root, tasks=["dr"],
+                                      limit_per_task=0, split="training", oct_slices=8, progress_every=1)
+            with patch("builtins.print") as progress:
+                cases = vlm.prepare_cases(args)
+            printed = "\n".join(call.args[0] for call in progress.call_args_list)
+            self.assertIn("Checked 1/2", printed)
+            self.assertIn("Checked 2/2", printed)
+            args.progress_every = 0
+            with patch("builtins.print") as quiet:
+                self.assertEqual(cases, vlm.prepare_cases(args))
+                quiet.assert_not_called()
+
     def test_grpo_and_supervised_train_save_and_evaluate_without_test_training(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
