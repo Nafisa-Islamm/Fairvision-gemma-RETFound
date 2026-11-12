@@ -1,11 +1,18 @@
 # FairRoute: actual GRPO routing on the existing FairVision code
 
-**Start smaller:** after the full training-file check timed out, a [540-training /
-320-validation pilot](GRPO_PILOT.md) was added. Prefer that workflow for the first
-learning experiment; the full-source workflow below remains available for a later,
-budgeted study. Existing test cases are not used for training in either workflow.
+**Dataset-size options:** this guide covers the full-source training/validation
+workflow. A [540-training / 320-validation pilot](GRPO_PILOT.md) is also available
+when a smaller inference budget is preferred. Existing test cases are not used for
+training in either workflow.
 
 This implementation adapts the supplied example into a trainable **small neural routing policy**. Frozen Gemma/MedGemma experts are not fine-tuned. It is categorical, one-step contextual-bandit GRPO with a separate differentiable fairness regularizer, not token-level GRPO training of a language model or a complete reproduction of RetinAgent. It has been tested on explicitly synthetic fixtures; no real FairVision routing model has yet been trained by the assistant.
+
+The full-data workflow is appropriate when its inference budget is available: it uses
+18,000 training and 3,000 validation cases per expert, keeping the existing 750-case
+test cohort separate. GPU batch jobs now print preparation progress every 100 cases
+(`PREP_PROGRESS_EVERY` can change this interval). Initial NPZ image/hash preparation
+still uses CPU and disk I/O before model loading; allocating a GPU does not accelerate
+that stage. Each model then performs its diagnostic inference on the requested GPU.
 
 ## What changed from the example
 

@@ -21,6 +21,7 @@ snapshot_file="$output_root/${model}_snapshot.txt"
 IFS= read -r snapshot < "$snapshot_file"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+export OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 printf 'GPU job node: %s\n' "$(hostname)"
 printf 'Slurm job: %s; assigned GPUs: %s\n' "${SLURM_JOB_ID:-unset}" "${SLURM_JOB_GPUS:-unset}"
@@ -53,6 +54,7 @@ for index in range(torch.cuda.device_count()):
 PY
 args=(--manifest "${FAIRVISION_MANIFEST:-$output_root/cohort.csv}"
       --split "${VLM_SPLIT:-test}"
+      --progress-every "${PREP_PROGRESS_EVERY:-100}"
       --data-root "$FAIRVISION_DATA_ROOT" --model "$model" --model-path "$snapshot"
       --device cuda --dtype "${VLM_DTYPE:-bfloat16}" --max-new-tokens "${MAX_NEW_TOKENS:-512}")
 if [[ "${SMOKE:-0}" == "1" ]]; then

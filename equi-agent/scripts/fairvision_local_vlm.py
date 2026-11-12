@@ -490,9 +490,8 @@ def main():
                          help="Explicit split; training/validation require manifests with matching split columns")
         sub.add_argument("--limit-per-task", type=int, default=0, help="Smoke runs only; 0 means entire cohort")
         sub.add_argument("--oct-slices", type=int, default=8)
-        if command == "check":
-            sub.add_argument("--progress-every", type=int, default=0,
-                             help="Print a progress line every N cases; 0 preserves JSON-only output")
+        sub.add_argument("--progress-every", type=int, default=0,
+                         help="Print preparation progress every N cases; 0 keeps checks JSON-only")
         if command == "infer":
             sub.add_argument("--model", choices=MODELS, required=True)
             sub.add_argument("--model-path", required=True)

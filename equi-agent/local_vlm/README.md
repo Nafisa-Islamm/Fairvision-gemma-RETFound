@@ -16,8 +16,8 @@ For a research extension using the saved experts, see the
 [fairness-aware routing plan and CPU audit](FAIR_ROUTING_RESEARCH.md).
 The [GRPO routing guide](GRPO_NEWTON.md) adds an actual small neural GRPO router,
 supervised baselines and explicit training/validation cache preparation.
-For the first run, use the [smaller GRPO pilot](GRPO_PILOT.md) with race/label caps
-and visible CPU-check progress rather than validating all 18,000 training cases.
+An optional [smaller GRPO pilot](GRPO_PILOT.md) uses race/label caps and visible
+CPU-check progress when full-source expert inference exceeds the available budget.
 It gives the clone, installation, dataset check, model-path setup, GPU smoke/full
 jobs, resume and CPU reporting commands. The selected dataset root is configured
 by FAIRVISION_DATA_ROOT; Amd/Dr/Glaucoma and case variations of Test are supported.
