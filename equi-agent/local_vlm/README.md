@@ -20,6 +20,8 @@ An optional [smaller GRPO pilot](GRPO_PILOT.md) uses race/label caps and visible
 CPU-check progress when full-source expert inference exceeds the available budget.
 If H100 queues are long, see the [experimental 32 GB V100 workflow](V100_NEWTON.md).
 Test FP16 in separate folders and retain consistent per-expert precision across splits.
+To replace a stalled diagnostic using live compatible capacity and admission checks,
+see the [available-GPU smoke helper](AVAILABLE_GPU_SMOKE.md).
 It gives the clone, installation, dataset check, model-path setup, GPU smoke/full
 jobs, resume and CPU reporting commands. The selected dataset root is configured
 by FAIRVISION_DATA_ROOT; Amd/Dr/Glaucoma and case variations of Test are supported.
